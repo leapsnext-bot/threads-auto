@@ -1,0 +1,26 @@
+name: Threadsの鍵を自動更新
+
+on:
+  schedule:
+    - cron: "23 18 * * 0"   # 毎週月曜 日本時間 3:23ごろ
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 鍵を更新して保存し直す
+        env:
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          THREADS_APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          NEW_TOKEN=$(python scripts/refresh_token.py)
+          echo "::add-mask::$NEW_TOKEN"
+          printf '%s' "$NEW_TOKEN" | gh secret set THREADS_TOKEN --repo "$GITHUB_REPOSITORY"
+          echo "✅ 鍵を更新しました（あと60日有効）" >> "$GITHUB_STEP_SUMMARY"

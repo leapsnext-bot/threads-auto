@@ -1,0 +1,45 @@
+name: Threads自動投稿
+
+on:
+  schedule:
+    # 時刻は世界標準時（日本時間 −9時間）で書く決まり
+    - cron: "7 22 * * *"   # 日本時間 7:07ごろ
+    - cron: "7 3 * * *"    # 日本時間 12:07ごろ
+    - cron: "7 12 * * *"   # 日本時間 21:07ごろ
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "お試し＝投稿せず確認だけ／今すぐ投稿＝1本投稿する"
+        type: choice
+        options: ["お試し", "今すぐ投稿"]
+        default: "お試し"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: threads-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 投稿する
+        env:
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'お試し' && '1' || '0' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: python scripts/post.py
+      - name: 投稿の記録を保存
+        if: success()
+        run: |
+          git config user.name "threads-bot"
+          git config user.email "threads-bot@users.noreply.github.com"
+          git add state/posted.tsv
+          git diff --cached --quiet || (git commit -m "投稿記録を更新" && git push)
