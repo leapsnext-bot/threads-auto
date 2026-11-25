@@ -1,0 +1,43 @@
+name: Xリプライの下書き通知
+
+on:
+  schedule:
+    - cron: "53 */3 * * *"  # 3時間ごと（日本時間 0:53, 3:53, 6:53 … ごろ）
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "お試し＝通知せず画面に表示だけ／本番＝メールで通知"
+        type: choice
+        options: ["お試し", "本番"]
+        default: "お試し"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: x-reply
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: リプライを集めて下書きを作る
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'お試し' && '1' || '0' }}
+        run: python scripts/x_reply_draft.py
+      - name: 記録を保存
+        if: success()
+        run: scripts/save_state.sh "Xリプライ確認の記録を更新" state/x_reply_state.json

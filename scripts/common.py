@@ -73,32 +73,37 @@ def _pct(s):
     return urllib.parse.quote(str(s), safe="~-._")
 
 
-def x_publish(text):
-    """Xに投稿する（OAuth 1.0a ユーザー認証）。投稿IDを返す"""
-    url = "https://api.x.com/2/tweets"
-    ck = os.environ["X_API_KEY"]
-    cs = os.environ["X_API_SECRET"]
-    tk = os.environ["X_ACCESS_TOKEN"]
-    ts = os.environ["X_ACCESS_SECRET"]
+def x_request(method, url, params=None, json_body=None):
+    """X API を OAuth 1.0a（自分のアカウント）で呼び出す"""
+    params = params or {}
     oauth = {
-        "oauth_consumer_key": ck,
+        "oauth_consumer_key": os.environ["X_API_KEY"],
         "oauth_nonce": secrets.token_hex(16),
         "oauth_signature_method": "HMAC-SHA1",
         "oauth_timestamp": str(int(time.time())),
-        "oauth_token": tk,
+        "oauth_token": os.environ["X_ACCESS_TOKEN"],
         "oauth_version": "1.0",
     }
-    param_str = "&".join(f"{_pct(k)}={_pct(v)}" for k, v in sorted(oauth.items()))
-    base = "&".join(["POST", _pct(url), _pct(param_str)])
-    key = f"{_pct(cs)}&{_pct(ts)}"
-    sig = base64.b64encode(hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()).decode()
-    oauth["oauth_signature"] = sig
+    allp = {**oauth, **{k: str(v) for k, v in params.items()}}
+    param_str = "&".join(f"{_pct(k)}={_pct(v)}" for k, v in sorted(allp.items()))
+    base = "&".join([method, _pct(url), _pct(param_str)])
+    key = f"{_pct(os.environ['X_API_SECRET'])}&{_pct(os.environ['X_ACCESS_SECRET'])}"
+    oauth["oauth_signature"] = base64.b64encode(
+        hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()).decode()
     header = "OAuth " + ", ".join(f'{_pct(k)}="{_pct(v)}"' for k, v in sorted(oauth.items()))
-    r = requests.post(url, headers={"Authorization": header, "Content-Type": "application/json"},
-                      data=json.dumps({"text": text}), timeout=60)
+    headers = {"Authorization": header}
+    if json_body is not None:
+        headers["Content-Type"] = "application/json"
+    r = requests.request(method, url, params=params or None, headers=headers,
+                         data=json.dumps(json_body) if json_body is not None else None, timeout=60)
     if r.status_code not in (200, 201):
-        raise RuntimeError(f"Xへの投稿に失敗: {r.status_code} {r.text}")
-    return r.json()["data"]["id"]
+        raise RuntimeError(f"X APIでエラー: {r.status_code} {r.text}")
+    return r.json()
+
+
+def x_publish(text):
+    """Xに投稿する。投稿IDを返す"""
+    return x_request("POST", "https://api.x.com/2/tweets", json_body={"text": text})["data"]["id"]
 
 
 def x_length(text):
