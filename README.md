@@ -70,3 +70,56 @@ GitHubのサーバーで動くので、スマホやPCを閉じていても動き
 
 ## うまく動かないとき
 「Actions」で赤い ❌ が付いた実行を開くと、日本語で理由が出ます。その画面をClaudeに見せてください。
+
+---
+
+# 追加の自動化（コメント返信・画像カード・X）
+
+## 全体の時間割
+| 時間（日本時間） | 内容 |
+|---|---|
+| 毎日 7:07 / 12:07 / 21:07ごろ | Threadsに1本投稿（posts.txt） |
+| 毎日 7:37 / 12:37 / 20:37ごろ | Xに1本投稿（x_posts.txt） |
+| 毎時23分ごろ | Threadsのコメントに自動返信 |
+| 毎週日曜 20:23ごろ | 1週間でいちばん反応が良かった投稿を画像カードにしてThreadsへ |
+| 毎週月曜 3:23ごろ | Threadsの鍵を自動で延長 |
+
+## コメント自動返信
+- AI（Claude）がコメントを読んで、🟢お礼／🟡笑縁LIVEに軽く誘う／🔵予約リンク付きで案内／🔴返信しない、に振り分けます
+- 🔴（批判・お金の話・判断が難しいもの）は返信せず、GitHubの「Issues」に一覧が作られ、カリスマにメールが届きます
+- スタート時より前のコメントには返信しません
+- 返信のルールを変えたいときは `scripts/reply.py` の上のほうの文章を書き換えます（Claudeに頼めばOK）
+
+**必要な鍵：ANTHROPIC_API_KEY**
+1. https://console.anthropic.com にログイン（アカウントがなければ作成）
+2. 「Billing（請求）」でクレジットを購入（5ドルから。返信だけなら数か月もちます）
+3. 「API Keys」→「Create Key」→ 名前 `threads-reply` → 出てきた鍵（`sk-ant-`で始まる）をコピー
+4. GitHubのシークレットに登録：名前 `ANTHROPIC_API_KEY`
+5. 「Actions」→「Threadsコメント自動返信」→「お試し」で実行 → ✅ならOK
+
+## 画像カード投稿
+- 画像は `images/` に保存され、その公開URLをThreadsに渡します
+- **保管場所（このリポジトリ）が非公開のままだと、Threadsが画像を読めないので投稿はお休みになります**
+- 公開にする方法：「Settings」→「General」→一番下「Danger Zone」→「Change repository visibility」→「Public」
+  - 鍵（シークレット）は公開されません。見えるのはプログラムと投稿文と画像だけです
+- 試すとき：「Actions」→「週1回の画像カード投稿」→「お試し」（画像を作るだけ）
+
+## X自動投稿（@takahide_ai）
+- 投稿は `x_posts.txt`（90本）。1本あたり約0.015ドル（リンクなしの場合）
+- 鍵が登録されるまでは、自動でお休みします
+
+**必要な鍵（4つ）**
+1. @takahide_ai でログインした状態で https://console.x.com（X Developer Console）を開く
+2. アプリを作成 →「User authentication settings（ユーザー認証設定）」で権限を **Read and write（読み取りと書き込み）** にする
+3. 「Keys and tokens」で次の4つを発行してコピー（Access Tokenは、権限をRead and writeにした**後で**発行する）
+4. クレジットを購入し、使いすぎ防止の上限（Spending limit）を設定（例：月5ドル）
+5. GitHubのシークレットに登録
+
+| 名前 | 中身 |
+|---|---|
+| `X_API_KEY` | API Key（Consumer Key） |
+| `X_API_SECRET` | API Key Secret（Consumer Secret） |
+| `X_ACCESS_TOKEN` | Access Token |
+| `X_ACCESS_SECRET` | Access Token Secret |
+
+6. 「Actions」→「X自動投稿」→「お試し」→ ✅なら「今すぐ投稿」で1本出して確認

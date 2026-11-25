@@ -1,0 +1,46 @@
+name: X自動投稿
+
+on:
+  schedule:
+    - cron: "37 22 * * *"  # 日本時間 7:37ごろ
+    - cron: "37 3 * * *"   # 日本時間 12:37ごろ
+    - cron: "37 11 * * *"  # 日本時間 20:37ごろ
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "お試し＝投稿せず確認だけ／今すぐ投稿＝1本投稿する"
+        type: choice
+        options: ["お試し", "今すぐ投稿"]
+        default: "お試し"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Xに投稿する
+        env:
+          PLATFORM: x
+          POSTS_FILE: x_posts.txt
+          STATE_FILE: state/x_posted.tsv
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'お試し' && '1' || '0' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: python scripts/post.py
+      - name: 投稿の記録を保存
+        if: success()
+        run: scripts/save_state.sh "X投稿記録を更新" state/x_posted.tsv

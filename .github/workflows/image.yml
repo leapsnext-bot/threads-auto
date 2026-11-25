@@ -1,0 +1,49 @@
+name: 週1回の画像カード投稿
+
+on:
+  schedule:
+    - cron: "23 11 * * 0"  # 毎週日曜 日本時間 20:23ごろ
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "お試し＝画像を作るだけ／今すぐ投稿＝Threadsに出す"
+        type: choice
+        options: ["お試し", "今すぐ投稿"]
+        default: "お試し"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: threads-image
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pillow
+      - name: 日本語フォントを用意
+        run: sudo apt-get install -y -qq fonts-noto-cjk > /dev/null
+      - name: 画像を作る
+        env:
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+        run: python scripts/image_post.py make
+      - name: 画像を保存（公開URLにする）
+        run: scripts/save_state.sh "画像カードを追加" images state/image_pending.json
+      - name: Threadsに投稿する
+        env:
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          IMAGE_BASE_URL: ${{ vars.IMAGE_BASE_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'お試し' && '1' || '0' }}
+        run: |
+          sleep 20
+          python scripts/image_post.py publish
+      - name: 投稿の記録を保存
+        if: always()
+        run: scripts/save_state.sh "画像投稿の記録を更新" state/image_posted.tsv state/image_pending.json

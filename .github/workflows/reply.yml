@@ -1,0 +1,40 @@
+name: Threadsコメント自動返信
+
+on:
+  schedule:
+    - cron: "23 * * * *"   # 1時間ごと（毎時23分ごろ）
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "お試し＝返信せず判定だけ表示／本番＝返信する"
+        type: choice
+        options: ["お試し", "本番"]
+        default: "お試し"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: threads-reply
+  cancel-in-progress: false
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: コメントに返信する
+        env:
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'お試し' && '1' || '0' }}
+        run: python scripts/reply.py
+      - name: 返信の記録を保存
+        if: success()
+        run: scripts/save_state.sh "コメント返信の記録を更新" state/reply_state.json
